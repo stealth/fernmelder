@@ -269,18 +269,18 @@ int DNS::parse_response(const string &msg, string &name, multimap<string, string
 	result.clear();
 
 	if (msg.size() < sizeof(dnshdr) + 4 + 16)
-		return build_error("parse_a_response: response too short");
+		return build_error("parse_response: response too short");
 
 	const dnshdr *hdr = (const dnshdr *)msg.c_str();
 	const char *qname = msg.c_str() + sizeof(dnshdr);
 
 	if (ntohs(hdr->q_count) != 1)
-		return build_error("parse_a_response: invalid packet (1)");
+		return build_error("parse_response: invalid packet (1)");
 
 	string fqdn = "";
 	int nl = 0;	// length of DNS encoded name
 	if ((nl = qname2host(string(qname, msg.size() - sizeof(dnshdr)), fqdn)) <= 0)
-		return build_error("parse_txt_response: invalid packet (2)");
+		return build_error("parse_response: invalid packet (2)");
 
 	name = fqdn;
 
@@ -295,12 +295,12 @@ int DNS::parse_response(const string &msg, string &name, multimap<string, string
 	}
 
 	if (hdr->rcode != 0) {
-		result.insert(pair<string, string>("NXDOMAIN", ""));
+		result.insert(pair<string, string>("0\tIN", "NXDOMAIN"));
 		return 1;
 	}
 
 	if (msg.size() < sizeof(dnshdr) + nl + 4 + sizeof(dns_rr))
-		return build_error("parse_txt_response: invalid packet (3)");
+		return build_error("parse_response: invalid packet (3)");
 
 	const char *idx = reinterpret_cast<const char *>(msg.c_str() + sizeof(dnshdr) + nl + 2*sizeof(uint16_t));
 
@@ -318,13 +318,13 @@ int DNS::parse_response(const string &msg, string &name, multimap<string, string
 			idx += nl;
 
 		if (idx + sizeof(dns_rr) > msg.c_str() + msg.size())
-			return build_error("parse_txt_response: invalid packet (4)");
+			return build_error("parse_response: invalid packet (4)");
 
 		rr = reinterpret_cast<const dns_rr *>(idx);
 		idx += sizeof(dns_rr);
 
 		if (idx + ntohs(rr->len) > msg.c_str() + msg.size())
-			return build_error("parse_txt_response: invalid packet (5)");
+			return build_error("parse_response: invalid packet (5)");
 
 		memset(ttl, 0, sizeof(ttl));
 		snprintf(ttl, sizeof(ttl), "%d", ntohl(rr->ttl));
@@ -340,7 +340,7 @@ int DNS::parse_response(const string &msg, string &name, multimap<string, string
 		} else if (rr->type == htons(dns_type::CNAME)) {
 			fqdn = "";
 			if ((nl = qname2host(string(idx, ntohs(rr->len)), fqdn)) < 0)
-				return build_error("parse_txt_response: invalid packet (6)");
+				return build_error("parse_response: invalid packet (6)");
 			// compressed
 			else if (nl == 0) {
 				memset(exp_dn, 0, sizeof(exp_dn));
