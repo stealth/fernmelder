@@ -116,7 +116,8 @@ int main(int argc, char **argv)
 				v.push_back(req);
 		}
 
-		dns->send(v);
+		if (dns->send(v) < 0)
+			cerr<<dns->why()<<endl;
 
 		for (;;) {
 
@@ -128,10 +129,8 @@ int main(int argc, char **argv)
 
 			r = dns->recv(res);
 
-			if (r < 0) {
+			if (r < 0)
 				cerr<<dns->why();
-				return -1;
-			}
 
 			if (r == 1) {
 				name = "";

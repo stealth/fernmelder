@@ -441,12 +441,20 @@ int DNS::send(vector<string> &msgs)
 			fcntl(sock, F_SETFL, fl|O_NONBLOCK);
 	}
 
+	int r = 0;
 	string msg = "";
 	for (auto it = ns_map.begin(); msgs.size() > 0;) {
 		msg = msgs.back();
-		msgs.pop_back();
-		::sendto(sock, msg.c_str(), msg.length(), 0, &(it->first), it->second);
+
+		r = ::sendto(sock, msg.c_str(), msg.length(), 0, &(it->first), it->second);
 		usleep(secs);
+
+		if (r < 0 && errno == EAGAIN)
+			continue;
+		else if (r < 0)
+			return build_error("send::send");
+
+		msgs.pop_back();
 		++it;
 		if (it == ns_map.end())
 			it = ns_map.begin();
@@ -469,7 +477,7 @@ int DNS::recv(string &msg)
 	if (r < 0 && errno == EAGAIN)
 		return 0;
 	else if (r < 0)
-		return build_error("recv::recv:");
+		return build_error("recv::recv");
 
 	msg = string(buf, r);
 	return 1;
