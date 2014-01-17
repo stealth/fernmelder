@@ -94,7 +94,13 @@ int main(int argc, char **argv)
 
 	v.reserve(shots);
 
-	cout<<"\n; <<>> fernmelder 0.2 <<>> -s "<<shots<<" -S "<<secs<<dns_list<<"\n;\n";
+	cout<<"\n; <<>> fernmelder 0.2 <<>> -s "<<shots<<" -S "<<secs
+	    <<dns_list;
+
+	if (qtype == dns_type::AAAA)
+		cout<<" -Q";
+
+	cout<<"\n;\n";
 
 	for (;;) {
 		v.clear();
