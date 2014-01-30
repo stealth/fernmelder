@@ -19,6 +19,8 @@
 
 #include <iostream>
 #include <map>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <cstdlib>
 #include "net-headers.h"
@@ -36,6 +38,7 @@ void usage()
 	    <<"\t\t-6\tuse IPv6 UDP to DNS server (use before -N)\n"
 	    <<"\t\t-Q\task for AAAA records (IPv6 mapping) rather than for A\n"
 	    <<"\t\t-N\tIP or hostname of recursive DNS server to use for resolving\n"
+	    <<"\t\t-A\tdo not print NXDOMAIn or CNAMEs\n"
 	    <<"\t\t-s\thow many requests in a row before receiving (low values OK)\n"
 	    <<"\t\t-S\tamount of usecs to sleep between send() calls to not flood server\n\n";
 
@@ -51,8 +54,10 @@ int main(int argc, char **argv)
 	multimap<string, string> result;
 	int r = 0, c = 0, shots = 4, secs = 1500;
 	uint16_t qtype = dns_type::A;
+	bool A_only = 0;
+	fd_set rset;
 
-	while ((c = getopt(argc, argv, "N:46s:S:Q")) != -1) {
+	while ((c = getopt(argc, argv, "N:46s:S:QA")) != -1) {
 		switch (c) {
 		case '4':
 			dns = new (nothrow) DNS(AF_INET);
@@ -64,11 +69,18 @@ int main(int argc, char **argv)
 			qtype = dns_type::AAAA;
 			break;
 		case 'N':
-			if (dns)
-				dns->add_ns(optarg);
+			if (dns) {
+				if (dns->add_ns(optarg) < 0) {
+					cerr<<dns->why()<<endl;
+					exit(2);
+				}
+			}
 			// save list for output string
 			dns_list += " -N ";
 			dns_list += optarg;
+			break;
+		case 'A':
+			A_only = 1;
 			break;
 		case 's':
 			shots = atoi(optarg);
@@ -94,11 +106,14 @@ int main(int argc, char **argv)
 
 	v.reserve(shots);
 
-	cout<<"\n; <<>> fernmelder 0.2 <<>> -s "<<shots<<" -S "<<secs
+	cout<<"\n; <<>> fernmelder 0.3 <<>> -s "<<shots<<" -S "<<secs
 	    <<dns_list;
 
 	if (qtype == dns_type::AAAA)
 		cout<<" -Q";
+
+	if (A_only)
+		cout<<" -A";
 
 	cout<<"\n;\n";
 
@@ -106,6 +121,12 @@ int main(int argc, char **argv)
 		v.clear();
 
 		for (int i = 0; i < shots; ++i) {
+			FD_ZERO(&rset);
+			FD_SET(0, &rset);
+			timeval tv = {0, secs};
+			if (select(0 + 1, &rset, NULL, NULL, &tv) != 1)
+				break;
+
 			name = "";
 			if (!(cin>>name)) {
 				eof = 1;
@@ -137,8 +158,14 @@ int main(int argc, char **argv)
 				result.clear();
 				if (dns->parse_response(res, name, result) <= 0)
 					continue;
-				for (auto i = result.begin(); i != result.end(); ++i)
+				for (auto i = result.begin(); i != result.end(); ++i) {
+					// only print resolved IP's, no CNAME or NXDOMAIN
+					if (A_only) {
+						if (i->first.find("A\t") == string::npos)
+							continue;
+					}
 					cout<<name<<"\t\t"<<i->first<<"\t"<<i->second<<endl;
+				}
 			} else {
 				if (!eof)
 					break;

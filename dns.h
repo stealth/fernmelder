@@ -30,13 +30,11 @@
 #include <errno.h>
 #include <bits/endian.h>
 #include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include "net-headers.h"
 
-
-struct sockaddrLess
-{
-	bool operator()(sockaddr s1, sockaddr s2);
-};
 
 
 int host2qname(const std::string&, std::string&);
@@ -55,7 +53,7 @@ class DNS {
 	int sock, family, type, secs;
 
 	std::string err;
-	std::map<sockaddr, uint16_t, sockaddrLess> ns_map;
+	std::map<addrinfo *, socklen_t> ns_map;
 	std::map<uint16_t, std::string> xid2name;
 
 public:

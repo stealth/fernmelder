@@ -46,11 +46,6 @@ using namespace net_headers;
 const uint8_t dns_max_label = 63;
 
 
-bool sockaddrLess::operator()(sockaddr s1, sockaddr s2)
-{
-	return memcmp(&s1, &s2, sizeof(s1)) < 0;
-}
-
 /*  "\003foo\003bar\000" -> foo.bar
  */
 int qname2host(const string &msg, string &result)
@@ -234,6 +229,10 @@ DNS::~DNS()
 {
 	if (sock >= 0)
 		close(sock);
+
+	for (auto i : ns_map) {
+		freeaddrinfo(i.first);
+	}
 }
 
 
@@ -251,14 +250,16 @@ int DNS::add_ns(const string &host, const string &port)
 	hints.ai_socktype = type;
 
  	int e;
-	if ((e = getaddrinfo(host.c_str(), port.c_str(), &hints, &ai)) < 0) {
+	if ((e = getaddrinfo(host.c_str(), port.c_str(), &hints, &ai)) != 0) {
 		err = "DNS::add_ns:getaddrinfo:";
 		err += gai_strerror(e);
 		return -1;
 	}
 
-	ns_map[*(ai->ai_addr)] = ai->ai_addrlen;
-	freeaddrinfo(ai);
+	ns_map[ai] = ai->ai_addrlen;
+
+	// do not free, as we keep a pointer in the ns_map
+	//freeaddrinfo(ai);
 	return 0;
 }
 
@@ -441,12 +442,16 @@ int DNS::send(vector<string> &msgs)
 			fcntl(sock, F_SETFL, fl|O_NONBLOCK);
 	}
 
+	if (msgs.size() == 0)
+		return 0;
+
 	int r = 0;
 	string msg = "";
 	for (auto it = ns_map.begin(); msgs.size() > 0;) {
 		msg = msgs.back();
 
-		r = ::sendto(sock, msg.c_str(), msg.length(), 0, &(it->first), it->second);
+		r = ::sendto(sock, msg.c_str(), msg.length(), 0, it->first->ai_addr,
+		             it->second);
 		usleep(secs);
 
 		if (r < 0 && errno == EAGAIN)
