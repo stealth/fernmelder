@@ -11,3 +11,7 @@ dns.o: dns.cc dns.h
 
 fm.o: fernmelder.cc
 	$(CXX) $(CFLAGS) fernmelder.cc -o fm.o
+
+clean:
+	rm -rf *.o
+
