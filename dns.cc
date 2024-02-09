@@ -182,7 +182,6 @@ int DNS::query(const string &host, string &result, uint16_t qtype)
 	string qname = "";
 
 	dnshdr dnsh;
-	memset(&dnsh, 0, sizeof(dnsh));
 	dnsh.id = ++seq;
 	dnsh.rd = 1;
 	dnsh.q_count = htons(1);
